@@ -39,29 +39,6 @@ def call_api(
         return False, message
 
 
-def fetch_zip_archive(base_url: str) -> Tuple[bool, Dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/documents/archive/zip"
-    try:
-        response = requests.get(
-            url,
-            headers=NGROK_HEADER,
-            timeout=max(60, DEFAULT_TIMEOUT),
-        )
-        response.raise_for_status()
-
-        file_name = "filings.zip"
-        disposition = response.headers.get("content-disposition", "")
-        if "filename=" in disposition:
-            file_name = disposition.split("filename=")[-1].strip().strip('"')
-
-        return True, {"file_name": file_name, "content": response.content}
-    except requests.RequestException as exc:
-        message = str(exc)
-        if exc.response is not None:
-            message = f"{exc} | response: {exc.response.text[:400]}"
-        return False, {"error": message}
-
-
 @st.cache_data(ttl=120)
 def get_companies(base_url: str) -> List[Dict[str, str]]:
     ok, data = call_api("GET", base_url, "/companies")
@@ -139,59 +116,6 @@ with tabs[1]:
             else:
                 st.error(data)
 
-    st.divider()
-    st.subheader("Custom Company URL")
-    custom_company_name = st.text_input(
-        "Custom company name",
-        value="Custom Company",
-        key="custom_company_name",
-    )
-    custom_source_url = st.text_input(
-        "Custom source URL",
-        placeholder="https://example.com/investor-relations",
-        key="custom_source_url",
-    )
-
-    c3, c4 = st.columns(2)
-    with c3:
-        if st.button("Run Custom Download", use_container_width=True):
-            if not custom_company_name.strip() or not custom_source_url.strip():
-                st.error("Company name and source URL are required.")
-            else:
-                ok, data = call_api(
-                    "POST",
-                    api_base_url,
-                    "/custom/run-download",
-                    params={
-                        "company_name": custom_company_name.strip(),
-                        "source_url": custom_source_url.strip(),
-                    },
-                )
-                if ok:
-                    st.success("Custom URL download completed")
-                    st.json(data)
-                else:
-                    st.error(data)
-    with c4:
-        if st.button("Run Custom Monitor", use_container_width=True):
-            if not custom_company_name.strip() or not custom_source_url.strip():
-                st.error("Company name and source URL are required.")
-            else:
-                ok, data = call_api(
-                    "POST",
-                    api_base_url,
-                    "/custom/run-monitor",
-                    params={
-                        "company_name": custom_company_name.strip(),
-                        "source_url": custom_source_url.strip(),
-                    },
-                )
-                if ok:
-                    st.success("Custom URL monitor completed")
-                    st.json(data)
-                else:
-                    st.error(data)
-
 with tabs[2]:
     st.subheader("All Filings")
     y1, y2, y3 = st.columns(3)
@@ -258,27 +182,3 @@ with tabs[3]:
                 st.json(data)
             else:
                 st.error(data)
-
-    st.divider()
-    st.subheader("Download All Filings as ZIP")
-    if "zip_blob" not in st.session_state:
-        st.session_state["zip_blob"] = None
-        st.session_state["zip_name"] = "filings.zip"
-
-    if st.button("Generate ZIP", use_container_width=True):
-        ok, payload = fetch_zip_archive(api_base_url)
-        if ok:
-            st.session_state["zip_blob"] = payload["content"]
-            st.session_state["zip_name"] = payload["file_name"]
-            st.success("ZIP generated. Click download below.")
-        else:
-            st.error(payload["error"])
-
-    if st.session_state["zip_blob"]:
-        st.download_button(
-            label="Download Filings ZIP",
-            data=st.session_state["zip_blob"],
-            file_name=st.session_state["zip_name"],
-            mime="application/zip",
-            use_container_width=True,
-        )

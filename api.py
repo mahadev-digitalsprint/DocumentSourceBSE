@@ -1,21 +1,13 @@
-import json
-import os
-import shutil
-from datetime import date, datetime
-
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
-
-from companies import COMPANIES
-from custom_url_tools import custom_download_pdfs, custom_monitor_pdfs
+from fastapi import FastAPI, Query
 from downloader import download_pdfs, is_financial
 from monitor import check_for_changes
+from companies import COMPANIES
 from bse import BSE
+from datetime import date, datetime
+import os
+import json
 
 app = FastAPI(title="S&P Financial Agent API", version="1.0")
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
-SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
 
 
 @app.get("/status")
@@ -67,24 +59,6 @@ def run_monitor_single(bse_code: str):
         return {"error": f"Company with BSE code {bse_code} not found"}
     changes = check_for_changes(company_name=company["name"], bse_code=bse_code)
     return {"message": "Monitor check complete", "changes": changes}
-
-
-@app.post("/custom/run-download")
-def run_custom_download(
-    company_name: str = Query(..., description="Display name for the custom company"),
-    source_url: str = Query(..., description="Public page URL containing PDF links"),
-):
-    results = custom_download_pdfs(company_name=company_name, source_url=source_url)
-    return {"message": "Custom URL download complete", "results": results}
-
-
-@app.post("/custom/run-monitor")
-def run_custom_monitor(
-    company_name: str = Query(..., description="Display name for the custom company"),
-    source_url: str = Query(..., description="Public page URL containing PDF links"),
-):
-    results = custom_monitor_pdfs(company_name=company_name, source_url=source_url)
-    return {"message": "Custom URL monitor complete", "changes": results}
 
 
 @app.get("/filings/all")
@@ -172,7 +146,7 @@ def get_filings(
 
 @app.get("/documents")
 def list_documents():
-    folder = DOWNLOADS_DIR
+    folder = "downloads"
     if not os.path.exists(folder):
         return {"documents": {}}
     result = {}
@@ -186,50 +160,16 @@ def list_documents():
 
 @app.get("/documents/{company_name}")
 def get_company_documents(company_name: str):
-    folder = os.path.join(DOWNLOADS_DIR, company_name)
+    folder = os.path.join("downloads", company_name)
     if not os.path.exists(folder):
         return {"message": f"No documents found for {company_name}"}
     files = os.listdir(folder)
     return {"company": company_name, "files": files, "count": len(files)}
 
 
-@app.get("/documents/archive/zip")
-def download_documents_archive():
-    source_dir = DOWNLOADS_DIR
-    if not os.path.exists(source_dir):
-        raise HTTPException(status_code=404, detail="Downloads folder not found")
-
-    has_files = False
-    for _, _, files in os.walk(source_dir):
-        if files:
-            has_files = True
-            break
-
-    if not has_files:
-        raise HTTPException(status_code=404, detail="No downloaded filings available")
-
-    archive_dir = os.path.join(SNAPSHOTS_DIR, "archives")
-    os.makedirs(archive_dir, exist_ok=True)
-
-    archive_base_name = os.path.join(
-        archive_dir, f"filings_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    )
-    archive_path = shutil.make_archive(
-        base_name=archive_base_name,
-        format="zip",
-        root_dir=source_dir,
-    )
-
-    return FileResponse(
-        path=archive_path,
-        media_type="application/zip",
-        filename=os.path.basename(archive_path),
-    )
-
-
 @app.get("/changes")
 def get_changes():
-    snapshots_dir = SNAPSHOTS_DIR
+    snapshots_dir = "snapshots"
     if not os.path.exists(snapshots_dir):
         return {"message": "No snapshots yet"}
     result = {}
