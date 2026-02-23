@@ -40,7 +40,7 @@ def call_api(
 
 
 def fetch_zip_archive(base_url: str) -> Tuple[bool, Dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/documents/archive"
+    url = f"{base_url.rstrip('/')}/documents/archive/zip"
     try:
         response = requests.get(
             url,

@@ -193,7 +193,7 @@ def get_company_documents(company_name: str):
     return {"company": company_name, "files": files, "count": len(files)}
 
 
-@app.get("/documents/archive")
+@app.get("/documents/archive/zip")
 def download_documents_archive():
     source_dir = DOWNLOADS_DIR
     if not os.path.exists(source_dir):
